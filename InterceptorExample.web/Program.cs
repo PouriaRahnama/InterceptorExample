@@ -22,13 +22,13 @@ namespace InterceptorExample.web
             builder.Services.AddSwaggerGen();
             builder.Services.AddSingleton<CustomInterceptor>();
             builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-            builder.Services.AddScoped<ShortenUrlService> ();
-            
+            builder.Services.AddScoped<ShortenUrlService>();
+            builder.Services.AddHttpContextAccessor();
 
             var settings = builder.Configuration.Get<AppSettings>();
             builder.Services.Configure<AppSettings>(builder.Configuration);
 
-            builder.Services.AddDbContextPool<SqlServerApplicationDbContext>((sp,options) =>
+            builder.Services.AddDbContextPool<SqlServerApplicationDbContext>((sp, options) =>
             {
                 if (settings is null) throw new Exception("Settings is null");
                 options.UseSqlServer(settings.SqlServerDbConnection.ShortenLinkConnection).AddInterceptors(sp.GetRequiredService<CustomInterceptor>());
@@ -44,18 +44,24 @@ namespace InterceptorExample.web
             }
 
 
-            app.MapPost("/shorten", async ([FromBody] ShortenRequest request,ShortenUrlService Services, CancellationToken cancellationToken) =>
+            app.MapPost("/shorten", async ([FromBody] ShortenRequest request, ShortenUrlService Services, CancellationToken cancellationToken) =>
             {
                 return await Services.CreateShortenLink(request.Url, cancellationToken);
             });
 
             app.MapGet("/{short_Code}", async ([FromRoute(Name = "short_Code")] string shortenCode, ShortenUrlService Services, CancellationToken cancellationToken) =>
             {
-                var destinationUrl = await Services.GetDestinationUrlAsync(shortenCode,cancellationToken);
+                var destinationUrl = await Services.GetDestinationUrlAsync(shortenCode, cancellationToken);
 
                 return Results.Ok(destinationUrl);
             });
 
+            app.MapGet("/c/{short_Code}", async ([FromRoute(Name = "short_Code")] string shortenCode, ShortenUrlService Services, CancellationToken cancellationToken) =>
+            {
+                var destinationUrl = await Services.GetDestinationUrlAsync(shortenCode, cancellationToken);
+
+                return Results.Redirect(destinationUrl);
+            });
             app.Run();
         }
     }
