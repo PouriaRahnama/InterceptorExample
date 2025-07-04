@@ -1,6 +1,8 @@
 ﻿using InterceptorExample.web.Domain;
+using Microsoft.AspNetCore.Mvc.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Threading;
 
 namespace InterceptorExample.web.Infrastructure.Common
 {
@@ -17,7 +19,7 @@ namespace InterceptorExample.web.Infrastructure.Common
             CancellationToken cancellationToken = new CancellationToken())
         {
             UpdateDbContext(eventData.Context, _contextAccessor);
-
+            SoftDelete(eventData, result);
             return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
 
@@ -25,7 +27,7 @@ namespace InterceptorExample.web.Infrastructure.Common
         private void UpdateDbContext(DbContext context, IHttpContextAccessor httpContextAccessor)
         {
             var CreatedList = context.ChangeTracker.Entries<ICreatedEntity>().Where(p => p.State == EntityState.Added).ToList();
-            if (CreatedList.Count >0)
+            if (CreatedList.Count > 0)
             {
                 foreach (var entry in CreatedList)
                 {
@@ -36,5 +38,24 @@ namespace InterceptorExample.web.Infrastructure.Common
                 }
             }
         }
+
+        private void SoftDelete(DbContextEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            if (eventData.Context == null)
+                return;
+
+            var _list = eventData.Context.ChangeTracker.Entries<ISoftDelete>()
+                .Where(p => p.State == EntityState.Deleted);
+            foreach (var item in _list)
+            {
+                item.State = EntityState.Modified;
+                item.Entity.DeletedAt = DateTime.Now;
+                item.Entity.IsDeleted = true;
+            }
+        }
+
     }
+
+
 }
